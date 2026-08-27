@@ -141,6 +141,9 @@ enum init_status BMI270_init(){
 
     _spi_init();
 
+    // trigger soft reset for continuos debugging
+    _write_data_to_address(BMI2_CMD_REG_ADDR, BMI2_SOFT_RESET_CMD);
+
 // ------------- sensor quick start init found in data sheet -------------------
     // test communication
     uint8_t dummy_1 = _read_data_from_address(BMI2_CHIP_ID_ADDR);
@@ -176,9 +179,11 @@ enum init_status BMI270_init(){
     }
 
     // configure preformance mode
-    _write_data_to_address(BMI2_PWR_CTRL_ADDR, 0x0E);
-    _write_data_to_address(BMI2_ACC_CONF_ADDR, 0xA8);
-    _write_data_to_address(BMI2_GYR_CONF_ADDR, 0xE9);
+    _write_data_to_address(BMI2_PWR_CTRL_ADDR, 0x06);
+    _write_data_to_address(BMI2_ACC_CONF_ADDR, 0x0c); //1.6kHz no averaging
+    _write_data_to_address(0x41, BMI2_ACC_RANGE_4G); // +-4g
+    _write_data_to_address(BMI2_GYR_CONF_ADDR, 0x0c); //1.6kHz 
+    _write_data_to_address(0x43, BMI2_GYR_RANGE_500); // +-500dps
     _write_data_to_address(BMI2_PWR_CONF_ADDR, 0x02);
 
     uint8_t dummy_2[BMI2_ACC_NUM_BYTES + BMI2_GYR_NUM_BYTES];
