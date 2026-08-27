@@ -60,7 +60,7 @@ uint8_t _spi_transmit(uint8_t send_data){
 
     SPI1->DR = send_data;
 
-    while(SPI1->SR & SPI_SR_BSY){}
+    while(!(SPI1->SR & SPI_SR_RXNE)){}
 
     uint8_t read_data = SPI1->DR;
 
@@ -155,14 +155,23 @@ enum init_status BMI270_init(){
     _write_data_to_address(BMI2_INIT_CTRL_ADDR, 0x00); // start initialization
 
     int config_size = sizeof(bmi270_config_file)/sizeof(bmi270_config_file[0]);
-    _burst_write(0x5E, bmi270_config_file, config_size);
+    _burst_write(BMI2_INIT_DATA_ADDR, bmi270_config_file, config_size);
+
+    // make sure that the config file was written correctly
+    uint8_t compare_arr[config_size];
+    _burst_read(BMI2_INIT_DATA_ADDR, compare_arr, config_size);
+    for(int i = 0; i<config_size; i++){
+        if(compare_arr[i] != bmi270_config_file[i]){
+            return INITIALIZATION_ERROR;
+        }
+    }
 
     _write_data_to_address(BMI2_INIT_CTRL_ADDR, 0x01); // complete initialization
 
     // confirm initialization
     for(volatile int i = 0; i<1000000; i++){} // wait minimum 20ms
     uint8_t init_status = _read_data_from_address(BMI2_INTERNAL_STATUS_ADDR);
-    if((init_status & (1<<0)) != 1){
+    if(init_status != 1){
         return INITIALIZATION_ERROR;
     }
 
