@@ -179,15 +179,12 @@ enum init_status BMI270_init(){
     }
 
     // configure preformance mode
-    _write_data_to_address(BMI2_ACC_CONF_ADDR, BMI2_ACC_ODR_1600HZ); //1.6kHz no averaging
+    _write_data_to_address(BMI2_PWR_CTRL_ADDR, BMI2_GYR_EN_MASK|BMI2_ACC_EN_MASK); // turn on gyro and acc
+    _write_data_to_address(BMI2_ACC_CONF_ADDR, 0xA0 | BMI2_ACC_ODR_1600HZ); //1.6kHz no averaging
     _write_data_to_address(BMI2_ACC_RANGE_ADDR, BMI2_ACC_RANGE_4G); // +-4g
-    _write_data_to_address(BMI2_GYR_CONF_ADDR, BMI2_GYR_ODR_1600HZ); //1.6kHz 
+    _write_data_to_address(BMI2_GYR_CONF_ADDR, 0xE0 | BMI2_GYR_ODR_1600HZ); //1.6kHz 
     _write_data_to_address(BMI2_GYR_RANGE_ADDR, BMI2_GYR_RANGE_500); // +-500dps
     _write_data_to_address(BMI2_PWR_CONF_ADDR, 0x02);
-
-    _write_data_to_address(BMI2_PWR_CTRL_ADDR, BMI2_GYR_EN_MASK|BMI2_ACC_EN_MASK); // turn on gyro and acc
-
-    //_write_data_to_address(BMI2_CMD_REG_ADDR, BMI2_FIFO_FLUSH_CMD);
 
     for(volatile int i = 0; i<1000000; i++){} // wait minimum 20ms
 
@@ -197,6 +194,7 @@ enum init_status BMI270_init(){
     return OK;
 }
 
+// returns data in g's
 struct data_3D get_accel_data(){
 
     // get raw data
@@ -221,15 +219,24 @@ struct data_3D get_accel_data(){
     return return_data;
 }
 
+// returns data in degrees per second
 struct data_3D get_gyro_data(){
 
     uint8_t raw_data[BMI2_GYR_NUM_BYTES];
 
     _burst_read(BMI2_GYR_X_LSB_ADDR, raw_data, BMI2_GYR_NUM_BYTES);
 
-    int16_t x_data = raw_data[0] | (raw_data[1]<<8);
-    int16_t y_data = raw_data[2] | (raw_data[3]<<8);
-    int16_t z_data = raw_data[4] | (raw_data[5]<<8); 
+    int16_t x_raw_data = raw_data[0] | (raw_data[1]<<8);
+    int16_t y_raw_data = raw_data[2] | (raw_data[3]<<8);
+    int16_t z_raw_data = raw_data[4] | (raw_data[5]<<8);
+    
+    // format data
+    uint16_t gyr_range = 2000 / pow(2,_read_data_from_address(BMI2_GYR_RANGE_ADDR));
+    double gyr_sensitivity = (double)INT16_MAX / gyr_range;
+
+    double x_data = (double)x_raw_data / gyr_sensitivity;
+    double y_data = (double)y_raw_data / gyr_sensitivity;
+    double z_data = (double)z_raw_data / gyr_sensitivity;
 
     struct data_3D return_data = {x_data, y_data, z_data};
 
