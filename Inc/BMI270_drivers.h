@@ -9,9 +9,9 @@
     enum init_status BMI270_init();
 
     struct data_3D{
-    int16_t x;
-    int16_t y;
-    int16_t z;
+    double x;
+    double y;
+    double z;
     };
     struct data_3D get_accel_data();
     struct data_3D get_gyro_data();

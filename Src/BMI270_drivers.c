@@ -2,6 +2,7 @@
 #include "BMI270_config_file.h"
 #include "bmi2_defs.h"
 #include "BMI270_drivers.h"
+#include <math.h>
 
 // all port A
 #define CS_pin 4
@@ -136,7 +137,6 @@ void _burst_read(uint8_t start_addr, uint8_t read_data[], int arr_size){
     _cs_disable();
 }
 
-// configured for preformance mode
 enum init_status BMI270_init(){
 
     _spi_init();
@@ -179,12 +179,17 @@ enum init_status BMI270_init(){
     }
 
     // configure preformance mode
-    _write_data_to_address(BMI2_PWR_CTRL_ADDR, 0x06);
-    _write_data_to_address(BMI2_ACC_CONF_ADDR, 0x0c); //1.6kHz no averaging
-    _write_data_to_address(0x41, BMI2_ACC_RANGE_4G); // +-4g
-    _write_data_to_address(BMI2_GYR_CONF_ADDR, 0x0c); //1.6kHz 
-    _write_data_to_address(0x43, BMI2_GYR_RANGE_500); // +-500dps
+    _write_data_to_address(BMI2_ACC_CONF_ADDR, BMI2_ACC_ODR_1600HZ); //1.6kHz no averaging
+    _write_data_to_address(BMI2_ACC_RANGE_ADDR, BMI2_ACC_RANGE_4G); // +-4g
+    _write_data_to_address(BMI2_GYR_CONF_ADDR, BMI2_GYR_ODR_1600HZ); //1.6kHz 
+    _write_data_to_address(BMI2_GYR_RANGE_ADDR, BMI2_GYR_RANGE_500); // +-500dps
     _write_data_to_address(BMI2_PWR_CONF_ADDR, 0x02);
+
+    _write_data_to_address(BMI2_PWR_CTRL_ADDR, BMI2_GYR_EN_MASK|BMI2_ACC_EN_MASK); // turn on gyro and acc
+
+    //_write_data_to_address(BMI2_CMD_REG_ADDR, BMI2_FIFO_FLUSH_CMD);
+
+    for(volatile int i = 0; i<1000000; i++){} // wait minimum 20ms
 
     uint8_t dummy_2[BMI2_ACC_NUM_BYTES + BMI2_GYR_NUM_BYTES];
     _burst_read(BMI2_ACC_X_LSB_ADDR, dummy_2, BMI2_ACC_NUM_BYTES + BMI2_GYR_NUM_BYTES); // not sure if required but part of sheet
@@ -194,13 +199,22 @@ enum init_status BMI270_init(){
 
 struct data_3D get_accel_data(){
 
+    // get raw data
     uint8_t raw_data[BMI2_ACC_NUM_BYTES];
 
     _burst_read(BMI2_ACC_X_LSB_ADDR, raw_data, BMI2_ACC_NUM_BYTES);
 
-    int16_t x_data = raw_data[0] | (raw_data[1]<<8);
-    int16_t y_data = raw_data[2] | (raw_data[3]<<8);
-    int16_t z_data = raw_data[4] | (raw_data[5]<<8); 
+    int16_t x_raw_data = raw_data[0] | (raw_data[1]<<8);
+    int16_t y_raw_data = raw_data[2] | (raw_data[3]<<8);
+    int16_t z_raw_data = raw_data[4] | (raw_data[5]<<8); 
+
+    // format data
+    uint8_t acc_range = pow(2, (1+_read_data_from_address(BMI2_ACC_RANGE_ADDR)));
+    uint16_t acc_sensitivity = (INT16_MAX / acc_range)+1;
+
+    double x_data = (double)x_raw_data / acc_sensitivity;
+    double y_data = (double)y_raw_data / acc_sensitivity;
+    double z_data = (double)z_raw_data / acc_sensitivity;
 
     struct data_3D return_data = {x_data, y_data, z_data};
 

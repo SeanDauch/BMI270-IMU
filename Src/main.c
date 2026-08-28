@@ -2,7 +2,14 @@
 #include <stdint.h>
 #include "BMI270_drivers.h"
 
+// c version of asm code found in cortexm4 refrence manual
+void enable_FPU(){
+    SCB->CPACR |= (0xf<<20);
+}
+
 int main(){
+
+    enable_FPU();
 
     enum init_status status = BMI270_init();
 
