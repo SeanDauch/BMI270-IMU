@@ -15,4 +15,6 @@
     };
     struct data_3D get_accel_data();
     struct data_3D get_gyro_data();
+    double get_pitch_from_accel(struct data_3D* accel_data);
+    double get_roll_from_accel(struct data_3D* accel_data);
 #endif

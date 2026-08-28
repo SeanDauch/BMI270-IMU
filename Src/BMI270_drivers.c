@@ -69,6 +69,11 @@ uint8_t _spi_transmit(uint8_t send_data){
 }
 
 // -------------------------------- Sensor -------------------------------------
+
+#define accel_x_off 0
+#define accel_y_off 0.02
+#define accel_z_off 0.01
+
 void _dummy_byte(){
     _spi_transmit(0);
 }
@@ -210,9 +215,9 @@ struct data_3D get_accel_data(){
     uint8_t acc_range = pow(2, (1+_read_data_from_address(BMI2_ACC_RANGE_ADDR)));
     uint16_t acc_sensitivity = (INT16_MAX / acc_range)+1;
 
-    double x_data = (double)x_raw_data / acc_sensitivity;
-    double y_data = (double)y_raw_data / acc_sensitivity;
-    double z_data = (double)z_raw_data / acc_sensitivity;
+    double x_data = ((double)x_raw_data / acc_sensitivity) + accel_x_off;
+    double y_data = ((double)y_raw_data / acc_sensitivity) + accel_y_off;
+    double z_data = ((double)z_raw_data / acc_sensitivity) + accel_z_off;
 
     struct data_3D return_data = {x_data, y_data, z_data};
 
@@ -241,4 +246,29 @@ struct data_3D get_gyro_data(){
     struct data_3D return_data = {x_data, y_data, z_data};
 
     return return_data;
+}
+
+// rolling around y_axis, follows RHR
+double get_roll_from_accel(struct data_3D* accel_data){
+
+    double numerator = accel_data->x;
+    double denominator = sqrt(pow(accel_data->y, 2) + pow(accel_data->z, 2));
+
+    double roll_rad = atan2(-1 * numerator, denominator);
+    double roll_deg = roll_rad * 180 / M_PI;
+
+    return roll_deg;
+}
+
+// pitching around x_axis, follows RHR
+double get_pitch_from_accel(struct data_3D* accel_data){
+
+    double numerator = accel_data->y;
+    double denominator = sqrt(pow(accel_data->x, 2) + pow(accel_data->z, 2));
+
+    double pitch_rad = atan2(numerator, denominator);
+    double pitch_deg = pitch_rad * 180 / M_PI;
+
+    return pitch_deg;
+
 }

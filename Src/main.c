@@ -23,6 +23,8 @@ int main(){
         struct data_3D accel_data = get_accel_data();
         struct data_3D gyro_data = get_gyro_data();
 
+        double pitch = get_pitch_from_accel(&accel_data);
+        double roll = get_roll_from_accel(&accel_data);
     }
     return 1;
 }
