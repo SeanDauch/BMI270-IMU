@@ -8,3 +8,4 @@
 1. ~~Turn sensor numbers to real measurements~~
 2. ~~Obtain pitch/roll from accelerometer~~
 3. Implement Kalman/Madgwick/Complementary filter
+4. Figure out real-time graphing to test filters
