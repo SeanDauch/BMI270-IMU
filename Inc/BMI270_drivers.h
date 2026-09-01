@@ -17,4 +17,5 @@
     struct data_3D get_gyro_data();
     double get_pitch_from_accel(struct data_3D* accel_data);
     double get_roll_from_accel(struct data_3D* accel_data);
+    double integrate_gyro(double one_axis_gyro_data);
 #endif

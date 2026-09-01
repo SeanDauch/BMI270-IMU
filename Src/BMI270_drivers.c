@@ -272,3 +272,13 @@ double get_pitch_from_accel(struct data_3D* accel_data){
     return pitch_deg;
 
 }
+
+// returns degrees changed due to one ODR cycle
+double integrate_gyro(double one_axis_gyro_data){
+
+    uint8_t gyr_odr = _read_data_from_address(BMI2_GYR_CONF_ADDR) & 0xF;
+    uint16_t gyr_freq = 25 * pow(2, gyr_odr-6);
+    double  gyr_period = 1.0/gyr_freq;
+
+    return one_axis_gyro_data * gyr_period;
+}
