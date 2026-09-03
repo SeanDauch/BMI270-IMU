@@ -199,6 +199,15 @@ enum init_status BMI270_init(){
     return OK;
 }
 
+// enable INT1 as active high for data ready
+void enable_data_ready_interrupt(){
+
+    _write_data_to_address(BMI2_INT_MAP_DATA_ADDR, BMI2_DRDY_INT);
+
+    _write_data_to_address(BMI2_INT1_IO_CTRL_ADDR, BMI2_INT_LEVEL_MASK|BMI2_INT_OUTPUT_EN_MASK);
+
+}
+
 // returns data in g's
 struct data_3D get_accel_data(){
 

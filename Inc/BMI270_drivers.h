@@ -7,6 +7,7 @@
     INITIALIZATION_ERROR
     };
     enum init_status BMI270_init();
+    void enable_data_ready_interrupt();
 
     struct data_3D{
     double x;
