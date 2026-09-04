@@ -46,6 +46,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 # Compiler options
 target_compile_options(${PROJECT_NAME} PRIVATE
   # User defined compiler options
+
+  -Wdouble-promotion
 )
 
 # Add additional defined symbols

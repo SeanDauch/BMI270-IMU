@@ -71,8 +71,8 @@ uint8_t _spi_transmit(uint8_t send_data){
 // -------------------------------- Sensor -------------------------------------
 
 #define accel_x_off 0
-#define accel_y_off 0.02
-#define accel_z_off 0.01
+#define accel_y_off 0.02f
+#define accel_z_off 0.01f
 
 void _dummy_byte(){
     _spi_transmit(0);
@@ -142,7 +142,7 @@ void _burst_read(uint8_t start_addr, uint8_t read_data[], int arr_size){
     _cs_disable();
 }
 
-enum init_status BMI270_init(){
+enum init_status BMI270_init(BMI_settings* BMI270_settings){
 
     _spi_init();
 
@@ -185,13 +185,24 @@ enum init_status BMI270_init(){
 
     // configure preformance mode
     _write_data_to_address(BMI2_PWR_CTRL_ADDR, BMI2_GYR_EN_MASK|BMI2_ACC_EN_MASK); // turn on gyro and acc
-    _write_data_to_address(BMI2_ACC_CONF_ADDR, 0xA0 | BMI2_ACC_ODR_1600HZ); //1.6kHz no averaging
+    _write_data_to_address(BMI2_ACC_CONF_ADDR, 0xA0 | BMI2_ACC_ODR_100HZ); //100Hz
     _write_data_to_address(BMI2_ACC_RANGE_ADDR, BMI2_ACC_RANGE_4G); // +-4g
     _write_data_to_address(BMI2_GYR_CONF_ADDR, 0xE0 | BMI2_GYR_ODR_1600HZ); //1.6kHz 
     _write_data_to_address(BMI2_GYR_RANGE_ADDR, BMI2_GYR_RANGE_500); // +-500dps
     _write_data_to_address(BMI2_PWR_CONF_ADDR, 0x02);
 
-    for(volatile int i = 0; i<1000000; i++){} // wait minimum 20ms
+    // get settings
+    uint8_t acc_range = powf(2, (1+_read_data_from_address(BMI2_ACC_RANGE_ADDR)));
+    BMI270_settings -> acc_sensitivity = (INT16_MAX / acc_range)+1;
+
+    uint8_t acc_odr = _read_data_from_address(BMI2_ACC_CONF_ADDR) & 0xF;
+    BMI270_settings -> acc_frequency = 25 * powf(2, acc_odr-6);
+
+    uint16_t gyro_range = 2000 / powf(2,_read_data_from_address(BMI2_GYR_RANGE_ADDR));
+    BMI270_settings -> gyro_sensitivity = (float)INT16_MAX / gyro_range;
+
+    uint8_t gyro_odr = _read_data_from_address(BMI2_GYR_CONF_ADDR) & 0xF;
+    BMI270_settings -> gyro_frequency = 25 * powf(2, gyro_odr-6);
 
     uint8_t dummy_2[BMI2_ACC_NUM_BYTES + BMI2_GYR_NUM_BYTES];
     _burst_read(BMI2_ACC_X_LSB_ADDR, dummy_2, BMI2_ACC_NUM_BYTES + BMI2_GYR_NUM_BYTES); // not sure if required but part of sheet
@@ -209,7 +220,7 @@ void enable_data_ready_interrupt(){
 }
 
 // returns data in g's
-struct data_3D get_accel_data(){
+struct data_3D get_accel_data(BMI_settings* settings){
 
     // get raw data
     uint8_t raw_data[BMI2_ACC_NUM_BYTES];
@@ -220,13 +231,9 @@ struct data_3D get_accel_data(){
     int16_t y_raw_data = raw_data[2] | (raw_data[3]<<8);
     int16_t z_raw_data = raw_data[4] | (raw_data[5]<<8); 
 
-    // format data
-    uint8_t acc_range = pow(2, (1+_read_data_from_address(BMI2_ACC_RANGE_ADDR)));
-    uint16_t acc_sensitivity = (INT16_MAX / acc_range)+1;
-
-    double x_data = ((double)x_raw_data / acc_sensitivity) + accel_x_off;
-    double y_data = ((double)y_raw_data / acc_sensitivity) + accel_y_off;
-    double z_data = ((double)z_raw_data / acc_sensitivity) + accel_z_off;
+    float x_data = ((float)x_raw_data / settings->acc_sensitivity) + accel_x_off;
+    float y_data = ((float)y_raw_data / settings->acc_sensitivity) + accel_y_off;
+    float z_data = ((float)z_raw_data / settings->acc_sensitivity) + accel_z_off;
 
     struct data_3D return_data = {x_data, y_data, z_data};
 
@@ -234,7 +241,7 @@ struct data_3D get_accel_data(){
 }
 
 // returns data in degrees per second
-struct data_3D get_gyro_data(){
+struct data_3D get_gyro_data(BMI_settings* settings){
 
     uint8_t raw_data[BMI2_GYR_NUM_BYTES];
 
@@ -245,49 +252,48 @@ struct data_3D get_gyro_data(){
     int16_t z_raw_data = raw_data[4] | (raw_data[5]<<8);
     
     // format data
-    uint16_t gyr_range = 2000 / pow(2,_read_data_from_address(BMI2_GYR_RANGE_ADDR));
-    double gyr_sensitivity = (double)INT16_MAX / gyr_range;
-
-    double x_data = (double)x_raw_data / gyr_sensitivity;
-    double y_data = (double)y_raw_data / gyr_sensitivity;
-    double z_data = (double)z_raw_data / gyr_sensitivity;
+    float x_data = (float)x_raw_data / settings->gyro_sensitivity;
+    float y_data = (float)y_raw_data / settings->gyro_sensitivity;
+    float z_data = (float)z_raw_data / settings->gyro_sensitivity;
 
     struct data_3D return_data = {x_data, y_data, z_data};
 
     return return_data;
 }
 
+float _pythag_theorem(float a , float b){
+    return sqrt((a*a)+(b*b));
+}
+
 // rolling around y_axis, follows RHR
-double get_roll_from_accel(struct data_3D* accel_data){
+float get_roll_from_accel(struct data_3D* accel_data){
 
-    double numerator = accel_data->x;
-    double denominator = sqrt(pow(accel_data->y, 2) + pow(accel_data->z, 2));
+    float numerator = accel_data->x;
+    float denominator = _pythag_theorem(accel_data->y, accel_data->z);
 
-    double roll_rad = atan2(-1 * numerator, denominator);
-    double roll_deg = roll_rad * 180 / M_PI;
+    float roll_rad = atan2f(-1 * numerator, denominator);
+    float roll_deg = roll_rad * 180 / 3.141592f;
 
     return roll_deg;
 }
 
 // pitching around x_axis, follows RHR
-double get_pitch_from_accel(struct data_3D* accel_data){
+float get_pitch_from_accel(struct data_3D* accel_data){
 
-    double numerator = accel_data->y;
-    double denominator = sqrt(pow(accel_data->x, 2) + pow(accel_data->z, 2));
+    float numerator = accel_data->y;
+    float denominator = _pythag_theorem(accel_data->x, accel_data->z);
 
-    double pitch_rad = atan2(numerator, denominator);
-    double pitch_deg = pitch_rad * 180 / M_PI;
+    float pitch_rad = atan2f(numerator, denominator);
+    float pitch_deg = pitch_rad * 180 / 3.141592f;
 
     return pitch_deg;
 
 }
 
 // returns degrees changed due to one ODR cycle
-double integrate_gyro(double one_axis_gyro_data){
+float integrate_gyro(BMI_settings* settings, float one_axis_gyro_data){
 
-    uint8_t gyr_odr = _read_data_from_address(BMI2_GYR_CONF_ADDR) & 0xF;
-    uint16_t gyr_freq = 25 * pow(2, gyr_odr-6);
-    double  gyr_period = 1.0/gyr_freq;
+    float  gyr_period = 1.0f/settings->gyro_frequency;
 
     return one_axis_gyro_data * gyr_period;
 }
